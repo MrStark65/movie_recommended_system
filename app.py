@@ -4,6 +4,7 @@ import pandas as pd
 import requests
 import gdown
 import os
+import concurrent.futures
 
 # ---------------------- Download Data from Google Drive ----------------------
 def download_file(url, output):
@@ -41,6 +42,7 @@ else:
 TMDB_API_KEY = "46660c76c7ff58983b9f1d0bc425350e"
 
 # ---------------------- TMDB API Functions ----------------------
+@st.cache_data
 def get_movie_id(movie_title):
     """Fetch movie ID from TMDB using the title"""
     url = f"https://api.themoviedb.org/3/search/movie?query={movie_title}&api_key={TMDB_API_KEY}"
@@ -52,8 +54,12 @@ def get_movie_id(movie_title):
         st.error("⚠️ Error fetching movie ID from TMDB.")
     return None
 
+@st.cache_data
 def fetch_movie_details(movie_id):
     """Fetch detailed movie information from TMDB"""
+    if movie_id is None:
+        return None
+
     url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}"
     try:
         response = requests.get(url).json()
@@ -76,11 +82,14 @@ def recommend(movie):
     try:
         movie_index = movies[movies['title'] == movie].index[0]
         distances = similarity[movie_index]
-
         movie_indices = sorted(enumerate(distances), key=lambda x: x[1], reverse=True)[1:6]
         recommended_movies = [movies.iloc[i[0]]['title'] for i in movie_indices]
 
-        movie_details = [fetch_movie_details(get_movie_id(title)) for title in recommended_movies]
+        # Fetch details in parallel
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            movie_ids = list(executor.map(get_movie_id, recommended_movies))
+            movie_details = list(executor.map(fetch_movie_details, movie_ids))
+
         return movie_details
     except Exception as e:
         st.error(f"❌ Error in Recommendation: {e}")
@@ -89,9 +98,7 @@ def recommend(movie):
 # ---------------------- Streamlit UI ----------------------
 st.set_page_config(page_title="🎬 Movie Recommender", page_icon="🍿", layout="wide")
 
-# Streamlit UI Enhancements
-st.markdown(
-    """
+st.markdown("""
     <style>
     body {
         background: #121212;
@@ -170,7 +177,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# ---------------------- UI Elements ----------------------
 st.markdown('<div class="title">🔥 Movie Recommender System</div>', unsafe_allow_html=True)
 
 selected_movie_name = st.selectbox("🔍 Select a movie:", movies['title'].values)
@@ -179,22 +185,23 @@ if st.button("🎬 Get Recommendations"):
     st.subheader("💡 Recommended Movies:")
 
     recommended_movies = recommend(selected_movie_name)
+    
+    if recommended_movies:
+        cols = st.columns(len(recommended_movies))  # Dynamically create columns
 
-    cols = st.columns(5)  # Display in 5 columns
-
-    for i, movie in enumerate(recommended_movies):
-        if movie:
-            with cols[i]:
-                st.markdown(
-                    f"""
-                    <div class="movie-card">
-                        <img src="{movie['poster']}" alt="{movie['title']}">
-                        <div class="movie-title">{movie['title']}</div>
-                        <div class="movie-details">
-                            ⭐ {movie['rating']} | 📅 {movie['release_date']} <br>
-                            🎭 {movie['genres']}
+        for i, movie in enumerate(recommended_movies):
+            if movie:
+                with cols[i]:
+                    st.markdown(
+                        f"""
+                        <div class="movie-card">
+                            <img src="{movie['poster']}" alt="{movie['title']}">
+                            <div class="movie-title">{movie['title']}</div>
+                            <div class="movie-details">
+                                ⭐ {movie['rating']} | 📅 {movie['release_date']} <br>
+                                🎭 {movie['genres']}
+                            </div>
                         </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                        """,
+                        unsafe_allow_html=True,
+                    )
