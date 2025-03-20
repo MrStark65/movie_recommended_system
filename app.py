@@ -10,9 +10,9 @@ def download_file(url, output):
     """Download file from Google Drive if it doesn't exist"""
     if not os.path.exists(output):
         st.info(f"Downloading {output} from Google Drive...")
-        gdown.download(url, output, quiet=False)
+        gdown.download(url, output, fuzzy=True, quiet=False)
 
-# Google Drive links for PKL files
+# Google Drive links for PKL files (Ensure correct file IDs)
 MOVIE_DICT_URL = "https://drive.google.com/uc?id=1_k6bbRDRDwqocVRaoWARQToq3OIbynl6"
 SIMILARITY_URL = "https://drive.google.com/uc?id=1QqvIlbT3F3PD9I277DqM6CKCDkzo-_Rn"
 
@@ -25,40 +25,49 @@ download_file(MOVIE_DICT_URL, MOVIE_DICT_FILE)
 download_file(SIMILARITY_URL, SIMILARITY_FILE)
 
 # ---------------------- Load Data ----------------------
-try:
-    movies_dict = pickle.load(open(MOVIE_DICT_FILE, 'rb'))
-    movies = pd.DataFrame(movies_dict)
-    similarity = pickle.load(open(SIMILARITY_FILE, 'rb'))
-except Exception as e:
-    st.error(f"❌ Error loading data: {e}")
+if os.path.exists(MOVIE_DICT_FILE) and os.path.exists(SIMILARITY_FILE):
+    try:
+        movies_dict = pickle.load(open(MOVIE_DICT_FILE, 'rb'))
+        movies = pd.DataFrame(movies_dict)
+        similarity = pickle.load(open(SIMILARITY_FILE, 'rb'))
+    except Exception as e:
+        st.error(f"❌ Error loading data: {e}")
+        st.stop()
+else:
+    st.error("❌ Required data files not found. Please check the Google Drive links.")
     st.stop()
 
-TMDB_API_KEY = "46660c76c7ff58983b9f1d0bc425350e"  # Replace with your API key
+# TMDB API Key
+TMDB_API_KEY = "46660c76c7ff58983b9f1d0bc425350e"
 
 # ---------------------- TMDB API Functions ----------------------
 def get_movie_id(movie_title):
     """Fetch movie ID from TMDB using the title"""
     url = f"https://api.themoviedb.org/3/search/movie?query={movie_title}&api_key={TMDB_API_KEY}"
-    response = requests.get(url).json()
-
-    if response and 'results' in response and len(response['results']) > 0:
-        return response['results'][0]['id']
+    try:
+        response = requests.get(url).json()
+        if response and 'results' in response and len(response['results']) > 0:
+            return response['results'][0]['id']
+    except requests.exceptions.RequestException:
+        st.error("⚠️ Error fetching movie ID from TMDB.")
     return None
 
 def fetch_movie_details(movie_id):
     """Fetch detailed movie information from TMDB"""
     url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}"
-    response = requests.get(url).json()
-
-    if response:
-        return {
-            "title": response.get("title", "N/A"),
-            "overview": response.get("overview", "No description available."),
-            "poster": f"https://image.tmdb.org/t/p/w500{response['poster_path']}" if response.get("poster_path") else "https://via.placeholder.com/300x450?text=No+Image",
-            "release_date": response.get("release_date", "N/A"),
-            "rating": response.get("vote_average", "N/A"),
-            "genres": ", ".join([genre["name"] for genre in response.get("genres", [])]),
-        }
+    try:
+        response = requests.get(url).json()
+        if response:
+            return {
+                "title": response.get("title", "N/A"),
+                "overview": response.get("overview", "No description available."),
+                "poster": f"https://image.tmdb.org/t/p/w500{response.get('poster_path')}" if response.get("poster_path") else "https://via.placeholder.com/300x450?text=No+Image",
+                "release_date": response.get("release_date", "N/A"),
+                "rating": response.get("vote_average", "N/A"),
+                "genres": ", ".join([genre["name"] for genre in response.get("genres", [])]),
+            }
+    except requests.exceptions.RequestException:
+        st.error("⚠️ Error fetching movie details from TMDB.")
     return None
 
 # ---------------------- Recommendation Function ----------------------
@@ -72,7 +81,6 @@ def recommend(movie):
         recommended_movies = [movies.iloc[i[0]]['title'] for i in movie_indices]
 
         movie_details = [fetch_movie_details(get_movie_id(title)) for title in recommended_movies]
-
         return movie_details
     except Exception as e:
         st.error(f"❌ Error in Recommendation: {e}")
