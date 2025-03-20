@@ -2,15 +2,38 @@ import streamlit as st
 import pickle
 import pandas as pd
 import requests
+import gdown
+import os
+
+# ---------------------- Download Data from Google Drive ----------------------
+def download_file(url, output):
+    """Download file from Google Drive if it doesn't exist"""
+    if not os.path.exists(output):
+        st.info(f"Downloading {output} from Google Drive...")
+        gdown.download(url, output, quiet=False)
+
+# Google Drive links for PKL files
+MOVIE_DICT_URL = "https://drive.google.com/uc?id=1_k6bbRDRDwqocVRaoWARQToq3OIbynl6"
+SIMILARITY_URL = "https://drive.google.com/uc?id=1QqvIlbT3F3PD9I277DqM6CKCDkzo-_Rn"
+
+# Filenames
+MOVIE_DICT_FILE = "movie_dict.pkl"
+SIMILARITY_FILE = "similarity.pkl"
+
+# Download files if missing
+download_file(MOVIE_DICT_URL, MOVIE_DICT_FILE)
+download_file(SIMILARITY_URL, SIMILARITY_FILE)
 
 # ---------------------- Load Data ----------------------
-movies_dict = pickle.load(open('movie_dict.pkl', 'rb'))
-movies = pd.DataFrame(movies_dict)
+try:
+    movies_dict = pickle.load(open(MOVIE_DICT_FILE, 'rb'))
+    movies = pd.DataFrame(movies_dict)
+    similarity = pickle.load(open(SIMILARITY_FILE, 'rb'))
+except Exception as e:
+    st.error(f"❌ Error loading data: {e}")
+    st.stop()
 
-similarity = pickle.load(open('similarity.pkl', 'rb'))
-
-TMDB_API_KEY = "46660c76c7ff58983b9f1d0bc425350e"  # Your API Key
-
+TMDB_API_KEY = "46660c76c7ff58983b9f1d0bc425350e"  # Replace with your API key
 
 # ---------------------- TMDB API Functions ----------------------
 def get_movie_id(movie_title):
@@ -22,7 +45,6 @@ def get_movie_id(movie_title):
         return response['results'][0]['id']
     return None
 
-
 def fetch_movie_details(movie_id):
     """Fetch detailed movie information from TMDB"""
     url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}"
@@ -32,14 +54,12 @@ def fetch_movie_details(movie_id):
         return {
             "title": response.get("title", "N/A"),
             "overview": response.get("overview", "No description available."),
-            "poster": f"https://image.tmdb.org/t/p/w500{response['poster_path']}" if response.get(
-                "poster_path") else "https://via.placeholder.com/300x450?text=No+Image",
+            "poster": f"https://image.tmdb.org/t/p/w500{response['poster_path']}" if response.get("poster_path") else "https://via.placeholder.com/300x450?text=No+Image",
             "release_date": response.get("release_date", "N/A"),
             "rating": response.get("vote_average", "N/A"),
             "genres": ", ".join([genre["name"] for genre in response.get("genres", [])]),
         }
     return None
-
 
 # ---------------------- Recommendation Function ----------------------
 def recommend(movie):
@@ -58,71 +78,65 @@ def recommend(movie):
         st.error(f"❌ Error in Recommendation: {e}")
         return []
 
-
 # ---------------------- Streamlit UI ----------------------
-st.set_page_config(page_title="Movie Recommender", page_icon="🎬", layout="wide")
+st.set_page_config(page_title="🎬 Movie Recommender", page_icon="🍿", layout="wide")
 
+# Streamlit UI Enhancements
 st.markdown(
     """
     <style>
-    /* Full Dark Cinematic Background */
     body {
-        background: #000;
+        background: #121212;
         color: white;
         font-family: 'Poppins', sans-serif;
     }
 
-    /* Neon Gradient Background */
     .main {
-        background: linear-gradient(120deg, #000000, #121212, #1a1a1a);
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0px 0px 15px rgba(255, 0, 150, 0.3);
+        background: rgba(20, 20, 20, 0.85);
+        padding: 30px;
+        border-radius: 15px;
+        backdrop-filter: blur(8px);
+        box-shadow: 0px 0px 20px rgba(255, 0, 150, 0.4);
     }
 
-    /* Title with Glow Effect */
     .title {
-        font-size: 36px;
+        font-size: 40px;
         text-align: center;
         font-weight: bold;
         color: #ff0099;
-        text-shadow: 0px 0px 10px rgba(255, 0, 150, 0.7);
+        text-shadow: 0px 0px 20px rgba(255, 0, 150, 0.8);
     }
 
-    /* Selectbox Styling */
     .stSelectbox label {
         color: white;
         font-size: 16px;
     }
 
-    /* Movie Card */
     .movie-card {
-        background: linear-gradient(145deg, #1a1a1a, #121212);
-        padding: 14px;
-        border-radius: 12px;
+        background: linear-gradient(135deg, #222, #111);
+        padding: 15px;
+        border-radius: 15px;
         text-align: center;
-        box-shadow: 0px 5px 15px rgba(255, 0, 150, 0.4);
-        transition: transform 0.3s ease-in-out, box-shadow 0.3s;
+        transition: transform 0.4s ease, box-shadow 0.4s;
+        box-shadow: 0px 10px 30px rgba(255, 0, 150, 0.3);
     }
     .movie-card:hover {
-        transform: scale(1.05);
-        box-shadow: 0px 10px 20px rgba(255, 0, 150, 0.6);
+        transform: scale(1.08);
+        box-shadow: 0px 15px 40px rgba(255, 0, 150, 0.6);
     }
 
-    /* Movie Image */
     .movie-card img {
-        border-radius: 12px;
+        border-radius: 15px;
         width: 100%;
-        transition: opacity 0.4s ease-in-out;
+        transition: opacity 0.4s ease;
     }
     .movie-card:hover img {
         opacity: 0.8;
     }
 
-    /* Movie Details */
     .movie-title {
         font-weight: bold;
-        font-size: 18px;
+        font-size: 20px;
         margin: 12px 0;
         color: #ff0099;
     }
@@ -132,17 +146,16 @@ st.markdown(
         color: #bbb;
     }
 
-    /* Button Styling */
     .stButton>button {
         background: linear-gradient(45deg, #ff0099, #ff6600);
         color: white;
         font-weight: bold;
-        border-radius: 8px;
-        transition: all 0.3s ease-in-out;
+        border-radius: 10px;
+        transition: all 0.3s ease;
     }
     .stButton>button:hover {
         background: linear-gradient(45deg, #ff6600, #ff0099);
-        transform: scale(1.05);
+        transform: scale(1.08);
     }
     </style>
     """,
@@ -159,16 +172,15 @@ if st.button("🎬 Get Recommendations"):
 
     recommended_movies = recommend(selected_movie_name)
 
-    # ✅ Display movies in a grid layout
     cols = st.columns(5)  # Five columns for five movies
 
     for idx, movie in enumerate(recommended_movies):
         if movie:
-            with cols[idx]:  # ✅ Assign each movie to a column
+            with cols[idx]:
                 st.markdown(
                     f"""
                     <div class="movie-card">
-                        <img src="{movie['poster']}" alt="{movie['title']} Poster" style="width:100%;">
+                        <img src="{movie['poster']}" alt="{movie['title']} Poster">
                         <div class="movie-title">{movie['title']}</div>
                         <div class="movie-details">
                             ⭐ {movie['rating']} | 📅 {movie['release_date']} <br>
