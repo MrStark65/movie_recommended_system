@@ -12,7 +12,7 @@ def download_file(url, output):
         st.info(f"Downloading {output} from Google Drive...")
         gdown.download(url, output, fuzzy=True, quiet=False)
 
-# Google Drive links for PKL files (Ensure correct file IDs)
+# Google Drive links for PKL files
 MOVIE_DICT_URL = "https://drive.google.com/uc?id=1_k6bbRDRDwqocVRaoWARQToq3OIbynl6"
 SIMILARITY_URL = "https://drive.google.com/uc?id=1QqvIlbT3F3PD9I277DqM6CKCDkzo-_Rn"
 
@@ -180,22 +180,21 @@ if st.button("🎬 Get Recommendations"):
 
     recommended_movies = recommend(selected_movie_name)
 
-    cols = st.columns(5)  # Five columns for five movies
+    cols = st.columns(5)  # Display in 5 columns
 
-    for idx, movie in enumerate(recommended_movies):
+    for i, movie in enumerate(recommended_movies):
         if movie:
-            with cols[idx]:
+            with cols[i]:
                 st.markdown(
                     f"""
                     <div class="movie-card">
-                        <img src="{movie['poster']}" alt="{movie['title']} Poster">
+                        <img src="{movie['poster']}" alt="{movie['title']}">
                         <div class="movie-title">{movie['title']}</div>
                         <div class="movie-details">
                             ⭐ {movie['rating']} | 📅 {movie['release_date']} <br>
-                            🎭 {movie['genres']} <br>
-                            {movie['overview'][:80]}...
+                            🎭 {movie['genres']}
                         </div>
                     </div>
                     """,
-                    unsafe_allow_html=True
+                    unsafe_allow_html=True,
                 )
