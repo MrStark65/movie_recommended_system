@@ -6,12 +6,15 @@ import gdown
 import os
 import concurrent.futures
 
+# ---------------------- Streamlit Page Config ----------------------
+st.set_page_config(page_title="🎬 Movie Recommender", page_icon="🍿", layout="wide")
+
 # ---------------------- Download Data from Google Drive ----------------------
 def download_file(url, output):
     """Download file from Google Drive if it doesn't exist"""
     if not os.path.exists(output):
-        st.info(f"Downloading {output} from Google Drive...")
-        gdown.download(url, output, fuzzy=True, quiet=False)
+        with st.spinner(f"📥 Downloading {output}..."):
+            gdown.download(url, output, fuzzy=True, quiet=False)
 
 # Google Drive links for PKL files
 MOVIE_DICT_URL = "https://drive.google.com/uc?id=1_k6bbRDRDwqocVRaoWARQToq3OIbynl6"
@@ -51,7 +54,7 @@ def get_movie_id(movie_title):
         if response and 'results' in response and len(response['results']) > 0:
             return response['results'][0]['id']
     except requests.exceptions.RequestException:
-        st.error("⚠️ Error fetching movie ID from TMDB.")
+        st.warning("⚠️ Error fetching movie ID from TMDB.")
     return None
 
 @st.cache_data
@@ -67,13 +70,14 @@ def fetch_movie_details(movie_id):
             return {
                 "title": response.get("title", "N/A"),
                 "overview": response.get("overview", "No description available."),
-                "poster": f"https://image.tmdb.org/t/p/w500{response.get('poster_path')}" if response.get("poster_path") else "https://via.placeholder.com/300x450?text=No+Image",
+                "poster": f"https://image.tmdb.org/t/p/w500{response.get('poster_path')}" if response.get(
+                    "poster_path") else "https://via.placeholder.com/300x450?text=No+Image",
                 "release_date": response.get("release_date", "N/A"),
                 "rating": response.get("vote_average", "N/A"),
                 "genres": ", ".join([genre["name"] for genre in response.get("genres", [])]),
             }
     except requests.exceptions.RequestException:
-        st.error("⚠️ Error fetching movie details from TMDB.")
+        st.warning("⚠️ Error fetching movie details from TMDB.")
     return None
 
 # ---------------------- Recommendation Function ----------------------
@@ -96,8 +100,6 @@ def recommend(movie):
         return []
 
 # ---------------------- Streamlit UI ----------------------
-st.set_page_config(page_title="🎬 Movie Recommender", page_icon="🍿", layout="wide")
-
 st.markdown("""
     <style>
     body {
@@ -174,18 +176,17 @@ st.markdown("""
     }
     </style>
     """,
-    unsafe_allow_html=True
-)
+            unsafe_allow_html=True
+            )
 
 st.markdown('<div class="title">🔥 Movie Recommender System</div>', unsafe_allow_html=True)
 
 selected_movie_name = st.selectbox("🔍 Select a movie:", movies['title'].values)
 
 if st.button("🎬 Get Recommendations"):
-    st.subheader("💡 Recommended Movies:")
+    with st.spinner("🔍 Fetching movie recommendations..."):
+        recommended_movies = recommend(selected_movie_name)
 
-    recommended_movies = recommend(selected_movie_name)
-    
     if recommended_movies:
         cols = st.columns(len(recommended_movies))  # Dynamically create columns
 
